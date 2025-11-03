@@ -1,5 +1,6 @@
 import styles from '../page.module.css';
 import type { Client } from '../types';
+import { FaUser } from 'react-icons/fa';
 
 interface Props {
   clients: Client[];
@@ -11,8 +12,9 @@ interface Props {
 export default function ClientList({ clients, myId, selectedClient, onSelect }: Props) {
   return (
     <section className={styles.section}>
-      <h2>👥 Connected Clients</h2>
-      <div className={styles.listBox}>
+      <h2>Connected Clients</h2>
+
+      <div className={styles.clientListBox}>
         {clients.length === 0 ? (
           <p className={styles.emptyText}>No other clients connected</p>
         ) : (
@@ -20,9 +22,16 @@ export default function ClientList({ clients, myId, selectedClient, onSelect }: 
             <div
               key={client.id}
               onClick={() => onSelect(client)}
-              className={`${styles.listItem} ${selectedClient?.id === client.id ? styles.selected : ''}`}
+              className={`${styles.clientCard} ${selectedClient?.id === client.id ? styles.selectedCard : ''}`}
             >
-              {client.name} {client.id === myId && '(You)'}
+              <div className={styles.clientRow}>
+                <div className={styles.clientInfo}>
+                  <FaUser className={styles.clientIcon} />
+                  <span className={styles.clientName}>
+                    {client.name} {client.id === myId && <span className={styles.youTag}>(You)</span>}
+                  </span>
+                </div>
+              </div>
             </div>
           ))
         )}

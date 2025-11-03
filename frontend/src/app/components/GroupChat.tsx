@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import styles from '../page.module.css';
 import MessageBubble from './MessageBubble';
 import type { Group, Message } from '../types';
@@ -13,6 +14,18 @@ interface Props {
 }
 
 export default function GroupChat({ group, messages, myId, input, setInput, onSend, onLeave }: Props) {
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  // auto-scroll to bottom when new messages come in
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTo({
+        top: chatRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
+  }, [messages]);
+
   return (
     <section className={styles.chatBox}>
       <div className={styles.groupHeader}>
@@ -21,7 +34,7 @@ export default function GroupChat({ group, messages, myId, input, setInput, onSe
           Leave
         </button>
       </div>
-      <div className={styles.chatWindow}>
+      <div className={styles.chatWindow} ref={chatRef}>
         {messages.length === 0 ? (
           <p className={styles.emptyText}>No messages yet.</p>
         ) : (

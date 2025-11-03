@@ -150,9 +150,13 @@ export default function Home() {
   if (!isLoggedIn) {
     return (
       <div className={styles.loginContainer}>
-        <div className={styles.loginBox}>
-          <h1 className={styles.loginTitle}>🚀 Socket.IO Chat</h1>
-          <p className={styles.loginSubtitle}>Please set your name to continue</p>
+        <div className={styles.loginCard}>
+          <div className={styles.loginHeader}>
+            <div className={styles.logoCircle}>💬</div>
+            <h1 className={styles.loginTitle}>Socket.IO Chat</h1>
+            <p className={styles.loginSubtitle}>Join the conversation instantly</p>
+          </div>
+
           <input
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
@@ -160,10 +164,12 @@ export default function Home() {
             className={styles.loginInput}
             onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
           />
+
           <button onClick={handleSetName} className={styles.loginButton}>
             Continue
           </button>
-          {nameError && <div className={styles.error}>{nameError}</div>}
+
+          {nameError && <div className={styles.loginError}>{nameError}</div>}
         </div>
       </div>
     );
@@ -172,49 +178,47 @@ export default function Home() {
   return (
     <div className={styles.container}>
       <Header myName={myName} isConnected={isConnected} />
-      <div className={styles.mainLayout}>
-        <div className={styles.leftPanel}>
-          {/* รายชื่อ Client */}
-          <ClientList clients={clients} myId={myId} selectedClient={selectedClient} onSelect={handleSelectClient} />
 
-          {/* ✅ Private Chat Window ย้ายมาตรงนี้ */}
-          {selectedClient && (
-            <PrivateChat
-              client={selectedClient}
-              messages={privateMessages}
-              myId={myId}
-              input={privateInput}
-              setInput={setPrivateInput}
-              onSend={handleSendPrivate}
-            />
-          )}
+      <div className={styles.mainColumn}>
+        {/* Clients */}
+        <ClientList clients={clients} myId={myId} selectedClient={selectedClient} onSelect={handleSelectClient} />
 
-          {/* รายชื่อ Group */}
-          <GroupList
-            groups={groups}
+        {/* Private Chat */}
+        {selectedClient && (
+          <PrivateChat
+            client={selectedClient}
+            messages={privateMessages}
             myId={myId}
-            currentGroup={currentGroup}
-            groupNameInput={groupNameInput}
-            setGroupNameInput={setGroupNameInput}
-            onSelect={handleSelectGroup}
-            onCreate={handleCreateGroup}
-            onViewMembers={setSelectedGroupForMembers}
+            input={privateInput}
+            setInput={setPrivateInput}
+            onSend={handleSendPrivate}
           />
-        </div>
+        )}
 
-        <div className={styles.rightPanel}>
-          {currentGroup && (
-            <GroupChat
-              group={currentGroup}
-              messages={groupMessages}
-              myId={myId}
-              input={groupInput}
-              setInput={setGroupInput}
-              onSend={handleSendGroupMessage}
-              onLeave={handleLeaveGroup}
-            />
-          )}
-        </div>
+        {/* Groups */}
+        <GroupList
+          groups={groups}
+          myId={myId}
+          currentGroup={currentGroup}
+          groupNameInput={groupNameInput}
+          setGroupNameInput={setGroupNameInput}
+          onSelect={handleSelectGroup}
+          onCreate={handleCreateGroup}
+          onViewMembers={setSelectedGroupForMembers}
+        />
+
+        {/* Group Chat */}
+        {currentGroup && (
+          <GroupChat
+            group={currentGroup}
+            messages={groupMessages}
+            myId={myId}
+            input={groupInput}
+            setInput={setGroupInput}
+            onSend={handleSendGroupMessage}
+            onLeave={handleLeaveGroup}
+          />
+        )}
       </div>
 
       {selectedGroupForMembers && (

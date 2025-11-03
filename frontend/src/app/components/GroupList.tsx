@@ -1,5 +1,6 @@
 import styles from '../page.module.css';
 import type { Group } from '../types';
+import { FaUsers } from 'react-icons/fa';
 
 interface Props {
   groups: Group[];
@@ -23,41 +24,62 @@ export default function GroupList({
   onViewMembers,
 }: Props) {
   return (
-    <section className={styles.section}>
-      <h2>👨‍👩‍👧‍👦 Groups</h2>
-      <div className={styles.inputGroup}>
-        <input
-          value={groupNameInput}
-          onChange={(e) => setGroupNameInput(e.target.value)}
-          placeholder="Enter group name"
-          className={styles.input}
-          onKeyPress={(e) => e.key === 'Enter' && onCreate()}
-        />
-        <button onClick={onCreate} className={styles.button}>
-          Create
-        </button>
+    <section className={styles.groupSection}>
+      <div className={styles.groupHeader}>
+        <h2>Groups</h2>
+        <div className={styles.inputGroup}>
+          <input
+            value={groupNameInput}
+            onChange={(e) => setGroupNameInput(e.target.value)}
+            placeholder="Enter group name"
+            className={styles.input}
+            onKeyPress={(e) => e.key === 'Enter' && onCreate()}
+          />
+          <button onClick={onCreate} className={styles.button}>
+            Create
+          </button>
+        </div>
       </div>
 
-      <div className={styles.listBox}>
+      <div className={styles.groupListBox}>
         {groups.length === 0 ? (
           <p className={styles.emptyText}>No groups available. Create one!</p>
         ) : (
-          groups.map((g) => (
-            <div key={g.id} className={`${styles.listItem} ${currentGroup?.id === g.id ? styles.selected : ''}`}>
-              <div className={styles.groupHeaderRow}>
-                <div onClick={() => onSelect(g)} className={styles.groupMain}>
-                  <strong>{g.name}</strong>
-                  <span className={styles.groupInfo}>
-                    {' '}
-                    by {g.creatorName} | Members: {g.members.length}
-                  </span>
+          groups.map((g) => {
+            const isMember = g.members.some((m) => m.id === myId);
+            const isSelected = currentGroup?.id === g.id;
+
+            return (
+              <div
+                key={g.id}
+                className={`${styles.groupCard} ${isSelected ? styles.selectedCard : ''}`}
+                onClick={() => onSelect(g)}
+              >
+                <div className={styles.groupTopRow}>
+                  <div>
+                    <strong className={styles.groupName}>{g.name}</strong>
+                    <div className={styles.groupMeta}>
+                      by {g.creatorName}
+                      <span className={styles.divider}>|</span>
+                      <span
+                        className={styles.memberClickable}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onViewMembers(g);
+                        }}
+                      >
+                        <FaUsers className={styles.memberIcon} /> {g.members.length} members
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className={`${styles.statusBadge} ${isMember ? styles.joined : styles.notJoined}`}>
+                    {isMember ? 'Joined' : 'Not Joined'}
+                  </div>
                 </div>
-                <button className={styles.toggleButton} onClick={() => onViewMembers(g)}>
-                  👥
-                </button>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </section>
