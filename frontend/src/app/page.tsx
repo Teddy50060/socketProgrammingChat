@@ -1,412 +1,225 @@
 'use client';
-
 import { useEffect, useState } from 'react';
 import { useSocket } from '../../hooks/useSocket';
 import styles from './page.module.css';
 
-interface Client {
-  id: string;
-  name: string;
-}
-
-interface Group {
-  id: string;
-  name: string;
-  creatorId: string;
-  creatorName: string;
-  members: { id: string; name: string }[];
-}
-
-interface Message {
-  from: string;
-  fromId: string;
-  to?: string;
-  toId?: string;
-  message: string;
-  timestamp: number;
-  groupId?: string;
-  groupName?: string;
-}
+// Component imports
+import Header from './components/Header';
+import ClientList from './components/ClientList';
+import PrivateChat from './components/PrivateChat';
+import GroupList from './components/GroupList';
+import GroupChat from './components/GroupChat';
+import MemberModal from './components/MemberModal';
+import type { Client, Group, Message } from './types';
 
 export default function Home() {
   const { socket, isConnected } = useSocket();
-  
-  // User state
+
+  // ========= User State =========
   const [myId, setMyId] = useState<string | null>(null);
-  const [myName, setMyName] = useState<string>('');
-  const [nameInput, setNameInput] = useState<string>('');
-  const [nameError, setNameError] = useState<string>('');
-  
-  // Client list
+  const [myName, setMyName] = useState('');
+  const [nameInput, setNameInput] = useState('');
+  const [nameError, setNameError] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // ========= Client State =========
   const [clients, setClients] = useState<Client[]>([]);
-  
-  // Private chat
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [privateMessages, setPrivateMessages] = useState<Message[]>([]);
-  const [privateInput, setPrivateInput] = useState<string>('');
-  
-  // Group chat
+  const [privateInput, setPrivateInput] = useState('');
+
+  // ========= Group State =========
   const [groups, setGroups] = useState<Group[]>([]);
-  const [groupNameInput, setGroupNameInput] = useState<string>('');
+  const [groupNameInput, setGroupNameInput] = useState('');
   const [currentGroup, setCurrentGroup] = useState<Group | null>(null);
   const [groupMessages, setGroupMessages] = useState<Message[]>([]);
-  const [groupInput, setGroupInput] = useState<string>('');
+  const [groupInput, setGroupInput] = useState('');
+  const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<Group | null>(null);
 
+  // ========= Socket Events =========
   useEffect(() => {
     if (!socket) return;
-
     setMyId(socket.id || null);
 
-    // R3: Name setting
-    socket.on('client:name-set', (data) => {
-      setMyName(data.name);
-      setNameError('');
-      console.log('Name set successfully:', data.name);
+    socket.on('client:name-set', (d) => {
+      setMyName(d.name);
+      setIsLoggedIn(true);
+      socket.emit('group:get-list');
     });
-
-    socket.on('client:name-error', (data) => {
-      setNameError(data.error);
-    });
-
-    // R4: Client list (real-time updates)
-    socket.on('client:list', (clientList: Client[]) => {
-      setClients(clientList);
-    });
-
-    // R7: Private messages
-    socket.on('private:message', (data: Message) => {
-      setPrivateMessages((prev) => [...prev, data]);
-    });
-
-    socket.on('private:history', (data: { withClientId: string; messages: Message[] }) => {
-      setPrivateMessages(data.messages);
-    });
-
-    // R8: Group created
-    socket.on('group:created', (data) => {
-      console.log('Group created:', data);
-      setGroupNameInput('');
-    });
-
-    // R9: Group list (real-time updates)
-    socket.on('group:list', (groupList: Group[]) => {
-      setGroups(groupList);
-    });
-
-    // R10: Group joined
-    socket.on('group:joined', (data) => {
-      const group = groups.find((g) => g.id === data.groupId);
-      if (group) {
-        setCurrentGroup(group);
-        socket.emit('group:get-history', { groupId: data.groupId });
+    socket.on('client:name-error', (d) => setNameError(d.error));
+    socket.on('client:list', setClients);
+    socket.on('private:message', (m) => setPrivateMessages((p) => [...p, m]));
+    socket.on('private:history', (d) => setPrivateMessages(d.messages));
+    socket.on('group:list', setGroups);
+    socket.on('group:message', (m) => setGroupMessages((p) => [...p, m]));
+    socket.on('group:history', (d) => setGroupMessages(d.messages));
+    socket.on('group:joined', (d) => {
+      const g = groups.find((x) => x.id === d.groupId);
+      if (g) {
+        setCurrentGroup(g);
+        socket.emit('group:get-history', { groupId: g.id });
       }
     });
-
-    // Group left
-    socket.on('group:left', (data) => {
+    socket.on('group:left', () => {
       setCurrentGroup(null);
       setGroupMessages([]);
     });
 
-    // Group member notifications
-    socket.on('group:member-joined', (data) => {
-      if (currentGroup?.id === data.groupId) {
-        setGroupMessages((prev) => [
-          ...prev,
-          {
-            from: 'System',
-            fromId: 'system',
-            message: `${data.clientName} joined the group`,
-            timestamp: Date.now(),
-          },
-        ]);
-      }
-    });
-
-    socket.on('group:member-left', (data) => {
-      if (currentGroup?.id === data.groupId) {
-        setGroupMessages((prev) => [
-          ...prev,
-          {
-            from: 'System',
-            fromId: 'system',
-            message: `${data.clientName} left the group`,
-            timestamp: Date.now(),
-          },
-        ]);
-      }
-    });
-
-    // R11: Group messages
-    socket.on('group:message', (data: Message) => {
-      setGroupMessages((prev) => [...prev, data]);
-    });
-
-    socket.on('group:history', (data: { groupId: string; messages: Message[] }) => {
-      setGroupMessages(data.messages);
-    });
-
-    // Error handling
-    socket.on('error', (data) => {
-      alert('Error: ' + data.message);
-    });
-
     return () => {
-      socket.off('client:name-set');
-      socket.off('client:name-error');
-      socket.off('client:list');
-      socket.off('private:message');
-      socket.off('private:history');
-      socket.off('group:created');
-      socket.off('group:list');
-      socket.off('group:joined');
-      socket.off('group:left');
-      socket.off('group:member-joined');
-      socket.off('group:member-left');
-      socket.off('group:message');
-      socket.off('group:history');
-      socket.off('error');
+      socket.removeAllListeners();
     };
-  }, [socket, currentGroup, groups]);
+  }, [socket, groups]);
 
-  // Handlers
-  const handleSetName = () => {
-    if (!nameInput.trim()) {
-      setNameError('Please enter a name');
-      return;
+  useEffect(() => {
+    if (selectedGroupForMembers) {
+      const updatedGroup = groups.find((g) => g.id === selectedGroupForMembers.id);
+      if (updatedGroup) {
+        setSelectedGroupForMembers(updatedGroup);
+      } else {
+        // If group deleted or empty (no members), close modal
+        setSelectedGroupForMembers(null);
+      }
     }
+  }, [groups]);
+
+  // ========= Handlers =========
+  const handleSetName = () => {
+    if (!nameInput.trim()) return setNameError('Please enter a name');
     socket?.emit('client:set-name', { name: nameInput });
   };
 
   const handleSelectClient = (client: Client) => {
-    if (client.id === myId) {
-      alert('You cannot chat with yourself!');
+    if (client.id === myId) return alert('You cannot chat with yourself!');
+
+    if (selectedClient?.id === client.id) {
+      setSelectedClient(null);
+      setPrivateMessages([]);
       return;
     }
+
     setSelectedClient(client);
     setPrivateMessages([]);
     socket?.emit('private:get-history', { withClientId: client.id });
   };
 
-  const handleSendPrivateMessage = () => {
+  const handleSendPrivate = () => {
     if (!selectedClient || !privateInput.trim()) return;
-    socket?.emit('private:send', {
-      to: selectedClient.id,
-      message: privateInput,
-    });
+    socket?.emit('private:send', { to: selectedClient.id, message: privateInput });
     setPrivateInput('');
   };
 
   const handleCreateGroup = () => {
-    if (!groupNameInput.trim()) {
-      alert('Please enter a group name');
-      return;
-    }
+    if (!groupNameInput.trim()) return alert('Please enter a group name');
     socket?.emit('group:create', { groupName: groupNameInput });
+    setGroupNameInput('');
   };
 
   const handleSelectGroup = (group: Group) => {
-    const isMember = group.members.some((m) => m.id === myId);
-    
-    if (!isMember) {
-      const confirm = window.confirm(`Do you want to join the group "${group.name}"?`);
-      if (confirm) {
-        socket?.emit('group:join', { groupId: group.id });
-      }
-    } else {
-      setCurrentGroup(group);
-      socket?.emit('group:get-history', { groupId: group.id });
+    if (currentGroup?.id === group.id) {
+      setCurrentGroup(null);
+      setGroupMessages([]);
+      return;
     }
+
+    const isMember = group.members.some((m) => m.id === myId);
+    if (!isMember) {
+      const confirmJoin = window.confirm(`Join "${group.name}"?`);
+      if (confirmJoin) {
+        socket?.emit('group:join', { groupId: group.id });
+      } else {
+        setCurrentGroup(null);
+      }
+      return;
+    }
+
+    setCurrentGroup(group);
+    socket?.emit('group:get-history', { groupId: group.id });
   };
 
   const handleLeaveGroup = () => {
-    if (!currentGroup) return;
-    const confirm = window.confirm(`Are you sure you want to leave "${currentGroup.name}"?`);
-    if (confirm) {
+    if (currentGroup && confirm(`Leave "${currentGroup.name}"?`))
       socket?.emit('group:leave', { groupId: currentGroup.id });
-    }
   };
 
   const handleSendGroupMessage = () => {
     if (!currentGroup || !groupInput.trim()) return;
-    socket?.emit('group:send', {
-      groupId: currentGroup.id,
-      message: groupInput,
-    });
+    socket?.emit('group:send', { groupId: currentGroup.id, message: groupInput });
     setGroupInput('');
   };
 
-  const renderMessage = (msg: Message, isOwn: boolean) => (
-    <div key={msg.timestamp} className={`${styles.message} ${isOwn ? styles.own : ''}`}>
-      <div className={styles.sender}>{isOwn ? 'You' : msg.from}</div>
-      <div className={styles.messageText}>{msg.message}</div>
-      <div className={styles.time}>{new Date(msg.timestamp).toLocaleTimeString()}</div>
-    </div>
-  );
+  if (!isLoggedIn) {
+    return (
+      <div className={styles.loginContainer}>
+        <div className={styles.loginBox}>
+          <h1 className={styles.loginTitle}>🚀 Socket.IO Chat</h1>
+          <p className={styles.loginSubtitle}>Please set your name to continue</p>
+          <input
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Enter your name"
+            className={styles.loginInput}
+            onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
+          />
+          <button onClick={handleSetName} className={styles.loginButton}>
+            Continue
+          </button>
+          {nameError && <div className={styles.error}>{nameError}</div>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
-      <h1 className={styles.title}>🚀 Socket.IO Chat Application</h1>
-      
-      <div className={`${styles.status} ${isConnected ? styles.connected : styles.disconnected}`}>
-        {isConnected ? '✓ Connected to server' : '✗ Disconnected from server'}
-      </div>
+      <Header myName={myName} isConnected={isConnected} />
+      <div className={styles.mainLayout}>
+        <div className={styles.leftPanel}>
+          {/* รายชื่อ Client */}
+          <ClientList clients={clients} myId={myId} selectedClient={selectedClient} onSelect={handleSelectClient} />
 
-      {/* R3: Set Name */}
-      <div className={styles.section}>
-        <h2>👤 Set Your Name (R3)</h2>
-        {!myName ? (
-          <div>
-            <div className={styles.inputGroup}>
-              <input
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                placeholder="Enter your name"
-                onKeyPress={(e) => e.key === 'Enter' && handleSetName()}
-                className={styles.input}
-              />
-              <button onClick={handleSetName} className={styles.button}>
-                Set Name
-              </button>
-            </div>
-            {nameError && <div className={styles.error}>{nameError}</div>}
-          </div>
-        ) : (
-          <div className={styles.nameDisplay}>✓ Logged in as: <strong>{myName}</strong></div>
-        )}
-      </div>
-
-      {/* R4: Client List */}
-      <div className={styles.section}>
-        <h2>👥 Connected Clients (R4) - Updates in Real-time</h2>
-        <div className={styles.listBox}>
-          {clients.length === 0 ? (
-            <p className={styles.emptyText}>No clients connected</p>
-          ) : (
-            clients.map((client) => (
-              <div
-                key={client.id}
-                className={`${styles.listItem} ${selectedClient?.id === client.id ? styles.selected : ''}`}
-                onClick={() => handleSelectClient(client)}
-              >
-                {client.name} {client.id === myId && '(You)'}
-              </div>
-            ))
+          {/* ✅ Private Chat Window ย้ายมาตรงนี้ */}
+          {selectedClient && (
+            <PrivateChat
+              client={selectedClient}
+              messages={privateMessages}
+              myId={myId}
+              input={privateInput}
+              setInput={setPrivateInput}
+              onSend={handleSendPrivate}
+            />
           )}
-        </div>
-      </div>
 
-      {/* R5, R6, R7: Private Chat */}
-      <div className={styles.section}>
-        <h2>💬 Private Chat (R5, R6, R7)</h2>
-        {!selectedClient ? (
-          <p className={styles.emptyText}>Select a client above to start a private chat</p>
-        ) : (
-          <div className={styles.chatBox}>
-            <h3>Chatting with: {selectedClient.name}</h3>
-            <div className={styles.chatWindow}>
-              {privateMessages.map((msg) =>
-                renderMessage(msg, msg.fromId === myId)
-              )}
-            </div>
-            <div className={styles.chatInput}>
-              <input
-                type="text"
-                value={privateInput}
-                onChange={(e) => setPrivateInput(e.target.value)}
-                placeholder="Type your message..."
-                onKeyPress={(e) => e.key === 'Enter' && handleSendPrivateMessage()}
-                className={styles.input}
-              />
-              <button onClick={handleSendPrivateMessage} className={styles.button}>
-                Send
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* R8, R9, R10, R11: Group Chat */}
-      <div className={styles.section}>
-        <h2>👨‍👩‍👧‍👦 Group Chats (R8, R9, R10, R11)</h2>
-        
-        {/* R8: Create Group */}
-        <div className={styles.inputGroup}>
-          <input
-            type="text"
-            value={groupNameInput}
-            onChange={(e) => setGroupNameInput(e.target.value)}
-            placeholder="Enter group name"
-            onKeyPress={(e) => e.key === 'Enter' && handleCreateGroup()}
-            className={styles.input}
+          {/* รายชื่อ Group */}
+          <GroupList
+            groups={groups}
+            myId={myId}
+            currentGroup={currentGroup}
+            groupNameInput={groupNameInput}
+            setGroupNameInput={setGroupNameInput}
+            onSelect={handleSelectGroup}
+            onCreate={handleCreateGroup}
+            onViewMembers={setSelectedGroupForMembers}
           />
-          <button onClick={handleCreateGroup} className={styles.button}>
-            Create Group
-          </button>
         </div>
 
-        {/* R9: Group List */}
-        <h3 className={styles.subheading}>Available Groups (Updates in Real-time)</h3>
-        <div className={styles.listBox}>
-          {groups.length === 0 ? (
-            <p className={styles.emptyText}>No groups available</p>
-          ) : (
-            groups.map((group) => {
-              const isMember = group.members.some((m) => m.id === myId);
-              return (
-                <div
-                  key={group.id}
-                  className={`${styles.listItem} ${currentGroup?.id === group.id ? styles.selected : ''}`}
-                  onClick={() => handleSelectGroup(group)}
-                >
-                  <strong>{group.name}</strong>
-                  <span className={styles.groupInfo}>
-                    {' '}by {group.creatorName} | Members: {group.members.length}
-                  </span>
-                  {isMember && <span className={styles.joinedBadge}> ✓ Joined</span>}
-                </div>
-              );
-            })
+        <div className={styles.rightPanel}>
+          {currentGroup && (
+            <GroupChat
+              group={currentGroup}
+              messages={groupMessages}
+              myId={myId}
+              input={groupInput}
+              setInput={setGroupInput}
+              onSend={handleSendGroupMessage}
+              onLeave={handleLeaveGroup}
+            />
           )}
         </div>
-
-        {/* Group Chat Window */}
-        {currentGroup && (
-          <div className={styles.chatBox}>
-            <div className={styles.groupHeader}>
-              <h3>Group: {currentGroup.name}</h3>
-              <button onClick={handleLeaveGroup} className={styles.dangerButton}>
-                Leave Group
-              </button>
-            </div>
-            <div className={styles.chatWindow}>
-              {groupMessages.map((msg) =>
-                msg.fromId === 'system' ? (
-                  <div key={msg.timestamp} className={styles.systemMessage}>
-                    {msg.message}
-                  </div>
-                ) : (
-                  renderMessage(msg, msg.fromId === myId)
-                )
-              )}
-            </div>
-            <div className={styles.chatInput}>
-              <input
-                type="text"
-                value={groupInput}
-                onChange={(e) => setGroupInput(e.target.value)}
-                placeholder="Type your message..."
-                onKeyPress={(e) => e.key === 'Enter' && handleSendGroupMessage()}
-                className={styles.input}
-              />
-              <button onClick={handleSendGroupMessage} className={styles.button}>
-                Send
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {selectedGroupForMembers && (
+        <MemberModal group={selectedGroupForMembers} myId={myId} onClose={() => setSelectedGroupForMembers(null)} />
+      )}
     </div>
   );
 }
